@@ -1,0 +1,25 @@
+name: Run Examples
+
+on:
+  push:
+
+jobs:
+  run-examples:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10"]
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+    - name: Run example scripts
+      run: |
+        uv run -m examples.calculate_e_score_v2_from_rank_info_example
+        uv run -m examples.calculate_raw_e_score_v2_example

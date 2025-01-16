@@ -1,0 +1,16 @@
+[project]
+name = "lapras-score-v2-private"
+dynamic = ["version"]
+requires-python = ">=3.10"
+dependencies = [
+    "mypy>=1.14.1",
+    "numpy>=2.2.1",
+    "scipy>=1.15.0",
+    "pydantic>=2.5.0",
+    "typing>=3.10.0.0",
+    "ruff>=0.8.6",
+]
+
+[tool.mypy]
+python_version = "3.10"
+type_checking_mode = "basic"

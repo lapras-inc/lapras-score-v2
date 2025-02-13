@@ -69,6 +69,15 @@ class QiitaPost(BaseModel):
     """記事のストック数"""
 
 
+class Event(BaseModel):
+    """イベントの情報を保持する
+    """
+    is_tech_event: bool
+    """技術系イベントかどうか"""
+    is_presenter: bool
+    """発表者かどうか"""
+
+
 class Logger(BaseModel):
     """ロギング関数のDI用
 
@@ -90,13 +99,13 @@ class RawEScoreV2DetailArgs(BaseModel):
     """日別のGitHubコントリビューション数"""
     tag_count: float
     """保有するスキルタグの数"""
-    tech_event_count: float
-    """参加した技術イベントの数"""
+    events: list[Event]
+    """参加したイベントのリスト"""
     qiita_popular_posts: list[QiitaPost]
     """Qiitaの人気記事リスト"""
     zenn_popular_articles: list[ZennArticle]
     """Zennの人気記事リスト"""
-    github_popular_repos: list[GitHubRepo]
+    github_repos: list[GitHubRepo]
     """GitHubの人気リポジトリリスト"""
     logger: Logger
     """ロギング関数"""
@@ -129,14 +138,14 @@ def calculate_raw_e_score_v2_detail(args: RawEScoreV2DetailArgs) -> RawEScoreV2D
     """
     # GitHub
     github_contribution_value = _get_github_contribution_value(args.github_contribution_count_list)
-    github_repo_value = _get_github_repo_value(args.github_popular_repos, args.github_identifier, args.logger)
+    github_repo_value = _get_github_repo_value(args.github_repos, args.github_identifier, args.logger)
     github_value = github_contribution_value * 0.1 + github_repo_value
 
     # Tech Article
     tech_article_value = _get_tech_article_value(args.qiita_popular_posts, args.zenn_popular_articles)
 
     # Tech Event
-    tech_event_value = args.tech_event_count
+    tech_event_value = _get_tech_event_value(args.events)
 
     # Tag Count
     tag_count_value = args.tag_count
@@ -160,6 +169,28 @@ def _get_github_repo_value(repos: list[GitHubRepo], github_identifier: str, logg
     Returns:
         float: 計算された値
     """
+    def _get_top_n_repos(repos: list[GitHubRepo], n: int) -> list[GitHubRepo]:
+        """リポジトリを取得
+
+        Args:
+            repos (list[GitHubRepo]): 評価対象のリポジトリリスト
+
+        Returns:
+            list[GitHubRepo]: 
+        """
+        # フォークされていて、かつコミットが少ないものは除外する
+        repos = [repo for repo in repos if not (
+            # フォークされているか
+            repo.original_repo_contributions > 0
+            # コミットが少ないか
+            and _get_contributions_count(repo=repo, github_identifier=github_identifier) < 3
+        )]
+
+        def get_repo_stats_score(repo: GitHubRepo) -> float:
+            return _get_repo_stats_score(repo=repo, github_identifier=github_identifier)
+
+        return sorted(repos, key=get_repo_stats_score, reverse=True)[:n]
+
     def _get_contributions_count(repo: GitHubRepo, github_identifier: str) -> int:
         """リポジトリにおける特定ユーザーのコントリビューション数を取得
 
@@ -227,7 +258,9 @@ def _get_github_repo_value(repos: list[GitHubRepo], github_identifier: str, logg
     if not repos:
         return 0
 
-    return float(numpy.prod([math.log(_get_repo_stats_score(repo, github_identifier) + 1) for repo in repos]))
+    top_three_repos = _get_top_n_repos(repos=repos, n=3)
+
+    return float(numpy.prod([math.log1p(_get_repo_stats_score(repo=repo, github_identifier=github_identifier)) for repo in top_three_repos]))
 
 
 def _get_tech_article_value(qiita_popular_posts: list[QiitaPost], zenn_popular_articles: list[ZennArticle]) -> float:
@@ -260,6 +293,28 @@ def _get_tech_article_value(qiita_popular_posts: list[QiitaPost], zenn_popular_a
             if liked_count > 0
         ]
     ))
+
+
+def _get_tech_event_value(events: list[Event]) -> float:
+    """技術イベントのRawスコアを計算
+
+    Args:
+        events (list[Event]): イベントのリスト
+
+    Returns:
+        float: 計算された技術イベントスコア
+    """
+    if not events:
+        return 0.0
+
+    total_score = 0.0
+    for event in events:
+        if not event.is_tech_event:
+            continue
+        # 登壇者は2.0点、参加者は0.1点
+        total_score += 2.0 if event.is_presenter else 0.1
+
+    return total_score
 
 
 def _get_github_contribution_value(github_contribution_count_list: list[int]) -> float:

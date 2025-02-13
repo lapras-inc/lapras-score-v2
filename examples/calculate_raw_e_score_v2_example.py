@@ -14,6 +14,7 @@ from lib.lapras_score_v2.calculate_raw_e_score_v2 import (
 from lib.lapras_score_v2.calculate_raw_e_score_v2_detail import (
     QiitaPost,
     ZennArticle,
+    Event,
     calculate_raw_e_score_v2_detail,
     RawEScoreV2DetailArgs,
     GitHubRepo,
@@ -27,18 +28,28 @@ def main():
         # GitHubの情報
         github_identifier="user1",
         github_contribution_count_list=[10, 20, 30],  # 過去3ヶ月のコントリビューション数
-        github_popular_repos=[
-            # 人気リポジトリ1
+        github_repos=[
             GitHubRepo(
                 contributors_count=5,      # コントリビューター数
                 stargazers_count=100,      # スター数
                 original_repo_contributions=0,  # オリジナルリポジトリへのコントリビューション数
                 original_stars_count=0         # オリジナルリポジトリのスター数
             ),
-            # 人気リポジトリ2
             GitHubRepo(
                 contributors_count=10,
                 stargazers_count=200,
+                original_repo_contributions=0,
+                original_stars_count=0
+            ),
+            GitHubRepo(
+                contributors_count=10,
+                stargazers_count=10,
+                original_repo_contributions=0,
+                original_stars_count=0
+            ),
+            GitHubRepo(
+                contributors_count=3,
+                stargazers_count=3,
                 original_repo_contributions=0,
                 original_stars_count=0
             )
@@ -53,7 +64,20 @@ def main():
         ],
         # その他の技術活動情報
         tag_count=10.0,           # 保有している技術タグの数
-        tech_event_count=5.0,     # 参加した技術イベントの数
+        events=[
+            Event(
+                is_tech_event=True,
+                is_presenter=True
+            ),
+            Event(
+                is_tech_event=False,
+                is_presenter=False
+            ),
+            Event(
+                is_tech_event=True,
+                is_presenter=False
+            )
+        ],
         # ロガーの設定
         logger=Logger(
             debug=print,

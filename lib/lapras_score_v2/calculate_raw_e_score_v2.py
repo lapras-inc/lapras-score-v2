@@ -1,7 +1,6 @@
-from lib.lapras_score_v2.calculate_raw_e_score_v2_detail import RawEScoreV2Detail
 import numpy
+from lib.lapras_score_v2.calculate_raw_e_score_v2_detail import RawEScoreV2Detail
 from pydantic import BaseModel
-
 
 """技術力スコア(Raw)を計算するモジュール
 
@@ -27,7 +26,7 @@ def calculate_raw_e_score_v2(detail: RawEScoreV2Detail) -> float:
     PARAMS = {
         'github_value': WeightMap(a=0.32, b=1.17),
         'tech_article_value': WeightMap(a=0.21, b=0.31),
-        'tech_event_value': WeightMap(a=0.30, b=0.27),
+        'tech_event_value': WeightMap(a=0.20, b=0.54),
         'tag_count_value': WeightMap(a=0.10, b=0.79),
     }
     # detail の property をループさせて、それぞれの値を計算して合計する

@@ -107,6 +107,8 @@ class RawEScoreV2DetailArgs(BaseModel):
     """Zennの人気記事リスト"""
     github_repos: list[GitHubRepo]
     """GitHubの人気リポジトリリスト"""
+    ai_reviews: list[float] = []
+    """AIレビューのスコアリスト"""
     logger: Logger
     """ロギング関数"""
 
@@ -142,7 +144,7 @@ def calculate_raw_e_score_v2_detail(args: RawEScoreV2DetailArgs) -> RawEScoreV2D
     github_value = github_contribution_value * 0.1 + github_repo_value
 
     # Tech Article
-    tech_article_value = _get_tech_article_value(args.qiita_popular_posts, args.zenn_popular_articles)
+    tech_article_value = _get_tech_article_value(args.qiita_popular_posts, args.zenn_popular_articles, args.ai_reviews)
 
     # Tech Event
     tech_event_value = _get_tech_event_value(args.events)
@@ -247,15 +249,15 @@ def _get_github_repo_value(repos: list[GitHubRepo], github_identifier: str, logg
     return float(numpy.prod([math.log1p(get_repo_stats_score(repo=repo, github_identifier=github_identifier, logger=logger)) for repo in top_three_repos]))
 
 
-def _get_tech_article_value(qiita_popular_posts: list[QiitaPost], zenn_popular_articles: list[ZennArticle]) -> float:
-    """技術記事のRawスコアを計算
+def _get_tech_article_popularity_value(qiita_popular_posts: list[QiitaPost], zenn_popular_articles: list[ZennArticle]) -> float:
+    """技術記事の人気度（いいね数・ストック数）に基づくRawスコアを計算
 
     Args:
         qiita_popular_posts (list[QiitaPost]): Qiitaの人気記事リスト
         zenn_popular_articles (list[ZennArticle]): Zennの人気記事リスト
 
     Returns:
-        float: 計算された技術記事スコア
+        float: 計算された技術記事の人気度スコア
     """
     like_count_list = []
     if qiita_popular_posts:
@@ -277,6 +279,51 @@ def _get_tech_article_value(qiita_popular_posts: list[QiitaPost], zenn_popular_a
             if liked_count > 0
         ]
     ))
+
+
+def _get_tech_article_ai_review_value(ai_reviews: list[float]) -> float:
+    """技術記事のAIレビュースコアに基づくRawスコアを計算
+
+    Args:
+        ai_reviews (list[float]): AIレビューのスコアリスト
+
+    Returns:
+        float: 計算されたAIレビュースコア
+    """
+    # AIレビュースコアの閾値
+    theta = 3.0
+    # スケールパラメータ
+    t = 5.0
+
+    if not ai_reviews:
+        return 0.0
+
+    exp_sum = sum(math.exp(t * max(score - theta, 0)) for score in ai_reviews)
+    return (1 / t) * math.log(exp_sum)
+
+
+def _get_tech_article_value(qiita_popular_posts: list[QiitaPost], zenn_popular_articles: list[ZennArticle], ai_reviews: list[float]) -> float:
+    """技術記事のRawスコアを計算
+
+    Args:
+        qiita_popular_posts (list[QiitaPost]): Qiitaの人気記事リスト
+        zenn_popular_articles (list[ZennArticle]): Zennの人気記事リスト
+        ai_reviews (list[float]): AIレビューのスコアリスト
+
+    Returns:
+        float: 計算された技術記事スコア
+    """
+    # AIレビューの重み
+    W_AI_REVIEW = 10
+
+    # 人気度スコア
+    popularity_score = _get_tech_article_popularity_value(qiita_popular_posts, zenn_popular_articles)
+
+    # AIレビュースコア
+    ai_review_score = _get_tech_article_ai_review_value(ai_reviews)
+
+    # 人気度スコアとAIレビュースコアの重み付き和
+    return popularity_score + W_AI_REVIEW * ai_review_score
 
 
 def _get_tech_event_value(events: list[Event]) -> float:

@@ -45,10 +45,10 @@ class GitHubRepo(BaseModel):
     """リポジトリの全コントリビューター数"""
     stargazers_count: int
     """リポジトリの獲得スター数"""
-    original_repo_contributions: int
-    """Forkされたリポジトリの場合の、オリジナルリポジトリへのコントリビューション数"""
-    original_stars_count: int
-    """Forkされたリポジトリの場合の、オリジナルリポジトリのスター数"""
+    upstream_repo_contributions: int
+    """Forkされたリポジトリの場合の、Fork元リポジトリへのコントリビューション数"""
+    upstream_stars_count: int
+    """Forkされたリポジトリの場合の、Fork元リポジトリのスター数"""
     contributors: list[Contributor] = []
     """通常のAPIから取得したコントリビューター情報"""
     contributors_from_commits: list[Contributor] = []
@@ -158,6 +158,52 @@ def calculate_raw_e_score_v2_detail(args: RawEScoreV2DetailArgs) -> RawEScoreV2D
     )
 
 
+def get_repo_stats_score(
+    repo: GitHubRepo,
+    github_identifier: str,
+    logger: Logger,
+) -> float:
+    """リポジトリの統計情報に基づいて値を計算
+
+    コントリビューター数、コントリビューション数、スター数を考慮して
+    対数スケールでスコアを計算します。Forkされたリポジトリの場合は
+    オリジナルリポジトリとの比較も行います。
+
+    Args:
+        repo (GitHubRepo): 対象リポジトリ
+        github_identifier (str): GitHub Identifier
+        logger (Logger): ロギング機能
+
+    Returns:
+        float: 計算された値
+    """
+    try:
+        contributions = get_contributions_count(
+            GetContributionsCountArgs(
+                contributors=repo.contributors,
+                contributors_from_commits=repo.contributors_from_commits,
+                github_identifier=github_identifier,
+                logger=logger
+            )
+        )
+        primary_repo_score = float(math.log(repo.contributors_count + 2, 10)) \
+            * ((math.log((float(min(contributions, 300)) ** 1.2) + 10) ** 1.7)
+               * math.log(float(min(repo.stargazers_count, 300) / 4) ** 1.3 + 2, 10)) ** 1.2
+
+        if repo.upstream_repo_contributions > 0:
+            upstream_repo_score = float(math.log(repo.contributors_count + 2, 10)) \
+                * ((math.log((float(min(repo.upstream_repo_contributions, 300)) ** 1.2) + 10) ** 1.7)
+                   * math.log(float(min(repo.upstream_stars_count, 300) / 4) ** 1.3 + 2, 10)) ** 1.2
+        else:
+            upstream_repo_score = 0
+
+        return max(primary_repo_score, upstream_repo_score)
+
+    except TypeError as e:
+        logger.error(e)
+        return 0
+
+
 def _get_github_repo_value(repos: list[GitHubRepo], github_identifier: str, logger: Logger) -> float:
     """GitHubリポジトリの値を計算する
 
@@ -181,86 +227,24 @@ def _get_github_repo_value(repos: list[GitHubRepo], github_identifier: str, logg
         # フォークされていて、かつコミットが少ないものは除外する
         repos = [repo for repo in repos if not (
             # フォークされているか
-            repo.original_repo_contributions > 0
+            repo.upstream_repo_contributions > 0
             # コミットが少ないか
-            and _get_contributions_count(repo=repo, github_identifier=github_identifier) < 3
+            and get_contributions_count(GetContributionsCountArgs(
+                contributors=repo.contributors,
+                contributors_from_commits=repo.contributors_from_commits,
+                github_identifier=github_identifier,
+                logger=logger
+            )) < 3
         )]
 
-        def get_repo_stats_score(repo: GitHubRepo) -> float:
-            return _get_repo_stats_score(repo=repo, github_identifier=github_identifier)
-
-        return sorted(repos, key=get_repo_stats_score, reverse=True)[:n]
-
-    def _get_contributions_count(repo: GitHubRepo, github_identifier: str) -> int:
-        """リポジトリにおける特定ユーザーのコントリビューション数を取得
-
-        通常のAPIとコミット履歴の両方からコントリビューション情報を収集します。
-
-        Args:
-            repo (GitHubRepo): 対象リポジトリ
-            github_identifier (str): GitHub Identifier
-
-        Returns:
-            int: コントリビューション数
-        """
-        try:
-            contributions_count = 0
-            # /commits 経由のコントリビューターも考慮して返却する
-            contributors = repo.contributors + repo.contributors_from_commits
-
-            for contributor in contributors:
-                if contributor.login is None:
-                    raise ValueError('contributor is None')
-                if contributor.contributions is None:
-                    raise ValueError('contributor.contributions is None')
-                if contributor.login.casefold() == github_identifier.casefold():
-                    contributions_count = contributor.contributions
-                    break
-
-            return contributions_count
-        except (AttributeError, KeyError, TypeError) as e:
-            logger.error(e)
-            return 0
-
-    def _get_repo_stats_score(repo: GitHubRepo, github_identifier: str) -> float:
-        """リポジトリの統計情報に基づいて値を計算
-
-        コントリビューター数、コントリビューション数、スター数を考慮して
-        対数スケールでスコアを計算します。Forkされたリポジトリの場合は
-        オリジナルリポジトリとの比較も行います。
-
-        Args:
-            repo (GitHubRepo): 対象リポジトリ
-            github_identifier (str): GitHub Identifier
-
-        Returns:
-            float: 計算された値
-        """
-        try:
-            contributions = _get_contributions_count(repo, github_identifier)
-            local_repo_score = float(math.log(repo.contributors_count + 2, 10)) \
-                * ((math.log((float(min(contributions, 300)) ** 1.2) + 10) ** 1.7)
-                   * math.log(float(min(repo.stargazers_count, 300) / 4) ** 1.3 + 2, 10)) ** 1.2
-
-            if repo.original_repo_contributions > 0:
-                original_repo_score = float(math.log(repo.contributors_count + 2, 10)) \
-                    * ((math.log((float(min(repo.original_repo_contributions, 300)) ** 1.2) + 10) ** 1.7)
-                       * math.log(float(min(repo.original_stars_count, 300) / 4) ** 1.3 + 2, 10)) ** 1.2
-            else:
-                original_repo_score = 0
-
-            return max(local_repo_score, original_repo_score)
-
-        except TypeError as e:
-            logger.error(e)
-            return 0
+        return sorted(repos, key=lambda repo: get_repo_stats_score(repo, github_identifier, logger), reverse=True)[:n]
 
     if not repos:
         return 0
 
     top_three_repos = _get_top_n_repos(repos=repos, n=3)
 
-    return float(numpy.prod([math.log1p(_get_repo_stats_score(repo=repo, github_identifier=github_identifier)) for repo in top_three_repos]))
+    return float(numpy.prod([math.log1p(get_repo_stats_score(repo=repo, github_identifier=github_identifier, logger=logger)) for repo in top_three_repos]))
 
 
 def _get_tech_article_value(qiita_popular_posts: list[QiitaPost], zenn_popular_articles: list[ZennArticle]) -> float:
@@ -331,3 +315,51 @@ def _get_github_contribution_value(github_contribution_count_list: list[int]) ->
         return 0
 
     return numpy.sum(numpy.log1p(github_contribution_count_list))
+
+
+class GetContributionsCountArgs(BaseModel):
+    """コントリビューション数を取得するためのパラメータ
+    """
+    contributors: list[GitHubRepo.Contributor]
+    """対象リポジトリのコントリビューター情報"""
+    contributors_from_commits: list[GitHubRepo.Contributor]
+    """コミット履歴から取得したコントリビューター情報"""
+    github_identifier: str
+    """GitHub Identifier"""
+    logger: Logger
+    """ロギング機能"""
+
+
+def get_contributions_count(args: GetContributionsCountArgs) -> int:
+    """リポジトリにおける特定ユーザーのコントリビューション数を取得
+
+    通常のAPIとコミット履歴の両方からコントリビューション情報を収集します。
+
+    Args:
+        args (GetContributionsCountArgs): コントリビューション数を取得するためのパラメータ
+            - contributors: 対象リポジトリのコントリビューター情報
+            - contributors_from_commits: コミット履歴から取得したコントリビューター情報
+            - github_identifier: GitHub Identifier
+            - logger: ロギング機能
+
+    Returns:
+        int: コントリビューション数
+    """
+    try:
+        contributions_count = 0
+        # /commits 経由のコントリビューターも考慮して返却する
+        contributors = args.contributors + args.contributors_from_commits
+
+        for contributor in contributors:
+            if contributor.login is None:
+                raise ValueError('contributor is None')
+            if contributor.contributions is None:
+                raise ValueError('contributor.contributions is None')
+            if contributor.login.casefold() == args.github_identifier.casefold():
+                contributions_count = contributor.contributions
+                break
+
+        return contributions_count
+    except (AttributeError, KeyError, TypeError, ValueError) as e:
+        args.logger.error(e)
+        return 0

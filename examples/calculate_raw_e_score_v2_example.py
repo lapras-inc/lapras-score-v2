@@ -32,26 +32,26 @@ def main():
             GitHubRepo(
                 contributors_count=5,      # コントリビューター数
                 stargazers_count=100,      # スター数
-                original_repo_contributions=0,  # オリジナルリポジトリへのコントリビューション数
-                original_stars_count=0         # オリジナルリポジトリのスター数
+                upstream_repo_contributions=0,  # オリジナルリポジトリへのコントリビューション数
+                upstream_stars_count=0         # オリジナルリポジトリのスター数
             ),
             GitHubRepo(
                 contributors_count=10,
                 stargazers_count=200,
-                original_repo_contributions=0,
-                original_stars_count=0
+                upstream_repo_contributions=0,
+                upstream_stars_count=0
             ),
             GitHubRepo(
                 contributors_count=10,
                 stargazers_count=10,
-                original_repo_contributions=0,
-                original_stars_count=0
+                upstream_repo_contributions=0,
+                upstream_stars_count=0
             ),
             GitHubRepo(
                 contributors_count=3,
                 stargazers_count=3,
-                original_repo_contributions=0,
-                original_stars_count=0
+                upstream_repo_contributions=0,
+                upstream_stars_count=0
             )
         ],
         # 技術記事の情報
@@ -78,6 +78,8 @@ def main():
                 is_presenter=False
             )
         ],
+        # AIレビューの情報
+        ai_reviews=[4.0, 1.0, 2.0],
         # ロガーの設定
         logger=Logger(
             debug=print,

@@ -30,28 +30,59 @@ def main():
         github_contribution_count_list=[10, 20, 30],  # 過去3ヶ月のコントリビューション数
         github_repos=[
             GitHubRepo(
+                full_name="user1/repo1",  # リポジトリのフルネーム
+                parent_repo_full_name=None,  # オリジナルリポジトリのフルネーム
                 contributors_count=5,      # コントリビューター数
                 stargazers_count=100,      # スター数
                 parent_repo_contributions=0,  # オリジナルリポジトリへのコントリビューション数
                 parent_stars_count=0         # オリジナルリポジトリのスター数
             ),
             GitHubRepo(
+                full_name="user1/repo2",
+                parent_repo_full_name=None,
                 contributors_count=10,
                 stargazers_count=200,
                 parent_repo_contributions=0,
                 parent_stars_count=0
             ),
             GitHubRepo(
+                full_name="user1/repo3",
+                parent_repo_full_name=None,
                 contributors_count=10,
                 stargazers_count=10,
                 parent_repo_contributions=0,
                 parent_stars_count=0
             ),
             GitHubRepo(
+                full_name="user1/repo4",
+                parent_repo_full_name=None,
                 contributors_count=3,
                 stargazers_count=3,
                 parent_repo_contributions=0,
                 parent_stars_count=0
+            ),
+            GitHubRepo(
+                full_name="user1/oss-repo1",  # forkしたリポジトリ
+                parent_repo_full_name="parent/oss-repo1",
+                contributors_count=15,
+                stargazers_count=0,
+                parent_repo_contributions=20,
+                parent_stars_count=20,
+                contributors=[
+                    GitHubRepo.Contributor(login="user1", contributions=20),
+                ],  # コントリビューター
+            ),
+            GitHubRepo(
+                full_name="parent/oss-repo1",  # fork元のリポジトリ
+                parent_repo_full_name=None,
+                contributors_count=15,
+                stargazers_count=20,
+                parent_repo_contributions=0,
+                parent_stars_count=0,
+                contributors_from_commits=[
+                    GitHubRepo.Contributor(login="user1", contributions=20),
+                ]  # コミットからのコントリビューター
+            ),
         ],
         # 技術記事の情報
         qiita_popular_posts=[

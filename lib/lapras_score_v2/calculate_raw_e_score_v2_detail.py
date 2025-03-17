@@ -41,8 +41,12 @@ class GitHubRepo(BaseModel):
         login: str | None
         """GitHubのログイン名"""
 
+    full_name: str
+    """リポジトリフルネーム(ユーザー名/リポジトリ名)"""
     contributors_count: int
     """リポジトリの全コントリビューター数"""
+    parent_repo_full_name: str | None
+    """Fork元リポジトリのフルネーム(ユーザー名/リポジトリ名)"""
     stargazers_count: int
     """リポジトリの獲得スター数"""
     parent_repo_contributions: int
@@ -217,36 +221,69 @@ def _get_github_repo_value(repos: list[GitHubRepo], github_identifier: str, logg
     Returns:
         float: 計算された値
     """
-    def _get_top_n_repos(repos: list[GitHubRepo], n: int) -> list[GitHubRepo]:
-        """リポジトリを取得
-
-        Args:
-            repos (list[GitHubRepo]): 評価対象のリポジトリリスト
-
-        Returns:
-            list[GitHubRepo]: 
-        """
-        # フォークされていて、かつコミットが少ないものは除外する
-        repos = [repo for repo in repos if not (
-            # フォークされているか
-        repo.parent_repo_contributions > 0
-            # コミットが少ないか
-            and get_contributions_count(GetContributionsCountArgs(
-                contributors=repo.contributors,
-                contributors_from_commits=repo.contributors_from_commits,
-                github_identifier=github_identifier,
-                logger=logger
-            )) < 3
-        )]
-
-        return sorted(repos, key=lambda repo: get_repo_stats_score(repo, github_identifier, logger), reverse=True)[:n]
-
     if not repos:
         return 0
 
-    top_three_repos = _get_top_n_repos(repos=repos, n=3)
+    top_three_repos = _get_top_n_repos(repos=repos, github_identifier=github_identifier, logger=logger, n=3)
+
+    # GitHubリポジトリスコアの計算
+    if not top_three_repos:
+        return 0
 
     return float(numpy.prod([math.log1p(get_repo_stats_score(repo=repo, github_identifier=github_identifier, logger=logger)) for repo in top_three_repos]))
+
+
+def _get_top_n_repos(repos: list[GitHubRepo], github_identifier: str, logger: Logger, n: int) -> list[GitHubRepo]:
+    """上位n個のリポジトリを取得
+
+    Args:
+        repos (list[GitHubRepo]): 評価対象のリポジトリリスト
+        github_identifier (str): 評価対象ユーザーのGitHub ID
+        logger (Logger): ロギング機能(DI)
+        n (int): 上位n個のリポジトリを取得する数
+
+    Returns:
+        list[GitHubRepo]: 上位n個のリポジトリ
+    """
+    # フォークされていて、かつコミットが少ないものは除外する
+    has_contribution_repos = [repo for repo in repos if not (
+        # フォークされているか
+        repo.parent_repo_contributions > 0
+        # コミットが少ないか
+        and get_contributions_count(GetContributionsCountArgs(
+            contributors=repo.contributors,
+            contributors_from_commits=repo.contributors_from_commits,
+            github_identifier=github_identifier,
+            logger=logger
+        )) < 3
+    )]
+
+    repos_with_scores: list[tuple[GitHubRepo, float]] = []
+    for repo in has_contribution_repos:
+        score = get_repo_stats_score(repo, github_identifier, logger)
+        if score > 0:
+            repos_with_scores.append((repo, score))
+
+    # スコアの高い順にソート
+    repos_with_scores.sort(key=lambda x: x[1], reverse=True)
+
+    # fork元とfork先の中でスコアが高い方を選ぶ、スコアが同じ場合はfork元を優先する
+    repos_by_full_name: dict[str, tuple[GitHubRepo, float]] = {}
+    for repo, score in repos_with_scores:
+        origin_full_name = repo.parent_repo_full_name if repo.parent_repo_full_name else repo.full_name
+        if origin_full_name not in repos_by_full_name:
+            repos_by_full_name[origin_full_name] = (repo, score)
+            continue
+
+        existing_score = repos_by_full_name[origin_full_name][1]
+        is_higher_score = score > existing_score
+        is_equal_score_and_parent_repo = score == existing_score and not repo.parent_repo_full_name
+        if is_higher_score or is_equal_score_and_parent_repo:
+            repos_by_full_name[origin_full_name] = (repo, score)
+
+    scored_repos = [repo for repo, _ in repos_by_full_name.values()]
+
+    return scored_repos[:n]
 
 
 def _get_tech_article_popularity_value(qiita_popular_posts: list[QiitaPost], zenn_popular_articles: list[ZennArticle]) -> float:

@@ -45,14 +45,14 @@ class GitHubRepo(BaseModel):
     """リポジトリの全コントリビューター数"""
     stargazers_count: int
     """リポジトリの獲得スター数"""
-    upstream_repo_contributions: int
+    parent_repo_contributions: int
     """Forkされたリポジトリの場合の、Fork元リポジトリへのコントリビューション数"""
-    upstream_stars_count: int
+    parent_stars_count: int
     """Forkされたリポジトリの場合の、Fork元リポジトリのスター数"""
     contributors: list[Contributor] = []
     """通常のAPIから取得したコントリビューター情報"""
     contributors_from_commits: list[Contributor] = []
-    """コミット履歴から取得したコントリビューター情報"""
+    """コミット履歴から取得したコントリビューター情報 (Fork元リポジトリのみ)"""
 
 
 class ZennArticle(BaseModel):
@@ -192,14 +192,14 @@ def get_repo_stats_score(
             * ((math.log((float(min(contributions, 300)) ** 1.2) + 10) ** 1.7)
                * math.log(float(min(repo.stargazers_count, 300) / 4) ** 1.3 + 2, 10)) ** 1.2
 
-        if repo.upstream_repo_contributions > 0:
-            upstream_repo_score = float(math.log(repo.contributors_count + 2, 10)) \
-                * ((math.log((float(min(repo.upstream_repo_contributions, 300)) ** 1.2) + 10) ** 1.7)
-                   * math.log(float(min(repo.upstream_stars_count, 300) / 4) ** 1.3 + 2, 10)) ** 1.2
+        if repo.parent_repo_contributions > 0:
+            parent_repo_score = float(math.log(repo.contributors_count + 2, 10)) \
+                * ((math.log((float(min(repo.parent_repo_contributions, 300)) ** 1.2) + 10) ** 1.7)
+                   * math.log(float(min(repo.parent_stars_count, 300) / 4) ** 1.3 + 2, 10)) ** 1.2
         else:
-            upstream_repo_score = 0
+            parent_repo_score = 0
 
-        return max(primary_repo_score, upstream_repo_score)
+        return max(primary_repo_score, parent_repo_score)
 
     except TypeError as e:
         logger.error(e)
@@ -229,7 +229,7 @@ def _get_github_repo_value(repos: list[GitHubRepo], github_identifier: str, logg
         # フォークされていて、かつコミットが少ないものは除外する
         repos = [repo for repo in repos if not (
             # フォークされているか
-            repo.upstream_repo_contributions > 0
+        repo.parent_repo_contributions > 0
             # コミットが少ないか
             and get_contributions_count(GetContributionsCountArgs(
                 contributors=repo.contributors,

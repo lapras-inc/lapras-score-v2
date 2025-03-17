@@ -32,27 +32,26 @@ def main():
             GitHubRepo(
                 contributors_count=5,      # コントリビューター数
                 stargazers_count=100,      # スター数
-                upstream_repo_contributions=0,  # オリジナルリポジトリへのコントリビューション数
-                upstream_stars_count=0         # オリジナルリポジトリのスター数
+                parent_repo_contributions=0,  # オリジナルリポジトリへのコントリビューション数
+                parent_stars_count=0         # オリジナルリポジトリのスター数
             ),
             GitHubRepo(
                 contributors_count=10,
                 stargazers_count=200,
-                upstream_repo_contributions=0,
-                upstream_stars_count=0
+                parent_repo_contributions=0,
+                parent_stars_count=0
             ),
             GitHubRepo(
                 contributors_count=10,
                 stargazers_count=10,
-                upstream_repo_contributions=0,
-                upstream_stars_count=0
+                parent_repo_contributions=0,
+                parent_stars_count=0
             ),
             GitHubRepo(
                 contributors_count=3,
                 stargazers_count=3,
-                upstream_repo_contributions=0,
-                upstream_stars_count=0
-            )
+                parent_repo_contributions=0,
+                parent_stars_count=0
         ],
         # 技術記事の情報
         qiita_popular_posts=[
@@ -102,7 +101,7 @@ def main():
     print(f"技術記事スコア: {detail.tech_article_value:.2f}")
     print(f"技術イベントスコア: {detail.tech_event_value:.2f}")
     print(f"技術タグスコア: {detail.tag_count_value:.2f}")
-    
+
     print("\n=== 計算結果 ===")
     print(f"総合技術力スコア(Raw): {score:.2f}")
 

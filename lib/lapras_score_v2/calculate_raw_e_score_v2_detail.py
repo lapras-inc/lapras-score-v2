@@ -193,13 +193,13 @@ def get_repo_stats_score(
             )
         )
         primary_repo_score = float(math.log(repo.contributors_count + 2, 10)) \
-            * ((math.log((float(min(contributions, 300)) ** 1.2) + 10) ** 1.7)
-               * math.log(float(min(repo.stargazers_count, 300) / 4) ** 1.3 + 2, 10)) ** 1.2
+            * ((math.log((float(contributions) ** 1.2) + 10) ** 1.7)
+               * math.log(float(repo.stargazers_count / 4) ** 1.3 + 2, 10)) ** 1.2
 
         if repo.parent_repo_contributions > 0:
             parent_repo_score = float(math.log(repo.contributors_count + 2, 10)) \
-                * ((math.log((float(min(repo.parent_repo_contributions, 300)) ** 1.2) + 10) ** 1.7)
-                   * math.log(float(min(repo.parent_stars_count, 300) / 4) ** 1.3 + 2, 10)) ** 1.2
+                * ((math.log((float(repo.parent_repo_contributions) ** 1.2) + 10) ** 1.7)
+                   * math.log(float(repo.parent_stars_count / 4) ** 1.3 + 2, 10)) ** 1.2
         else:
             parent_repo_score = 0
 
